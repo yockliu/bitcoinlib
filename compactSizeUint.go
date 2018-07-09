@@ -8,7 +8,16 @@ type CompactSizeUint struct {
 
 // Size get the bytes count
 func (csu *CompactSizeUint) Size() int {
-	return 8
+	if csu.value <= 252 {
+		return 1
+	}
+	if csu.value <= 0xffff {
+		return 3
+	}
+	if csu.value <= 0xffffffff {
+		return 5
+	}
+	return 9
 }
 
 // Bytes get the bytes buffer
