@@ -11,6 +11,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"math/big"
 
 	"github.com/itchyny/base58-go"
 	"golang.org/x/crypto/ripemd160"
@@ -79,6 +80,39 @@ func GetPubKeyHashFromAddress(address []byte) []byte {
 func checksum(payload []byte) []byte {
 	firstSha := sha256.Sum256(payload)
 	sencondSha := sha256.Sum256(firstSha[:])
-
 	return sencondSha[:4]
+}
+
+// Sign si
+func Sign(privateKey ecdsa.PrivateKey, content []byte) []byte {
+	r, s, err := ecdsa.Sign(rand.Reader, &privateKey, content)
+	if err != nil {
+		panic(fmt.Sprintf("Sign error: %s", err))
+	}
+	signature := append(r.Bytes(), s.Bytes()...)
+	return signature
+}
+
+// CheckSign check the signature
+func CheckSign(pubKeyHash []byte, signatrue []byte, content []byte) bool {
+	curve := elliptic.P256()
+
+	r := big.Int{}
+	s := big.Int{}
+	sigLen := len(signatrue)
+	r.SetBytes(signatrue[:(sigLen / 2)])
+	s.SetBytes(signatrue[(sigLen / 2):])
+
+	x := big.Int{}
+	y := big.Int{}
+	keyLen := len(pubKeyHash)
+	x.SetBytes(pubKeyHash[:(keyLen / 2)])
+	y.SetBytes(pubKeyHash[(keyLen / 2):])
+
+	rawPubKey := ecdsa.PublicKey{Curve: curve, X: &x, Y: &y}
+	if ecdsa.Verify(&rawPubKey, content, &r, &s) == false {
+		return false
+	}
+
+	return true
 }
