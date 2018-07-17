@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/itchyny/base58-go"
+	"github.com/jbenet/go-base58"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -21,20 +21,29 @@ const version = 0x00
 
 // KeyPair public key and private key
 type KeyPair struct {
-	PrivateKey ecdsa.PrivateKey
+	PrivateKey *ecdsa.PrivateKey
 	PublicKey  []byte
+	Address    string
 }
 
 // GenKeyPair new private key and public key
-func GenKeyPair() (ecdsa.PrivateKey, []byte) {
+func GenKeyPair() *KeyPair {
 	curve := elliptic.P256()
 	private, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
 		panic(fmt.Sprintf("GenKeyPaire ecdsa generate key error: %s", err))
 	}
 	pubKey := append(private.PublicKey.X.Bytes(), private.PublicKey.Y.Bytes()...)
+	pubKeyHash := HashPubKey(pubKey)
+	address := GetAddressFromPubKeyHash(pubKeyHash)
 
-	return *private, pubKey
+	result := KeyPair{
+		PrivateKey: private,
+		PublicKey:  pubKey,
+		Address:    address,
+	}
+
+	return &result
 }
 
 // HashPubKey get the hash of the public key
@@ -52,27 +61,17 @@ func HashPubKey(pubKey []byte) []byte {
 }
 
 // GetAddressFromPubKeyHash get address from public key hash, reverse GetPubKeyHashFromAddress
-func GetAddressFromPubKeyHash(pubKeyHash []byte) []byte {
+func GetAddressFromPubKeyHash(pubKeyHash []byte) string {
 	versionedPayload := append([]byte{version}, pubKeyHash...)
 	checksum := checksum(versionedPayload)
-
 	fullPayload := append(versionedPayload, checksum...)
-	encode := base58.BitcoinEncoding
-	address, err := encode.Encode(fullPayload)
-	if err != nil {
-		panic(fmt.Sprintf("GetAddressFromPubKeyHash base58 encode error: %s", err))
-	}
-
+	address := base58.Encode(fullPayload)
 	return address
 }
 
 // GetPubKeyHashFromAddress get public key hash from address, reverse GetAddressFromPubKeyHash
-func GetPubKeyHashFromAddress(address []byte) []byte {
-	encode := base58.BitcoinEncoding
-	versionedPayload, err := encode.Decode(address)
-	if err != nil {
-		panic(fmt.Sprintf("GetPubKeyHashFromAddress base58 decode error: %s", err))
-	}
+func GetPubKeyHashFromAddress(address string) []byte {
+	versionedPayload := base58.Decode(address)
 	pubKeyHash := versionedPayload[1 : len(versionedPayload)-4]
 	return pubKeyHash
 }
@@ -84,8 +83,8 @@ func checksum(payload []byte) []byte {
 }
 
 // Sign si
-func Sign(privateKey ecdsa.PrivateKey, content []byte) []byte {
-	r, s, err := ecdsa.Sign(rand.Reader, &privateKey, content)
+func Sign(privateKey *ecdsa.PrivateKey, content []byte) []byte {
+	r, s, err := ecdsa.Sign(rand.Reader, privateKey, content)
 	if err != nil {
 		panic(fmt.Sprintf("Sign error: %s", err))
 	}
